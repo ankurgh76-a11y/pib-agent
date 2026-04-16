@@ -1,0 +1,11 @@
+node_modules
+.env
+post_dump.html
+page_dump.html
+detail_dump.html
+debug_dump.html
+test_scraper.js
+test_detail.js
+test_pw.js
+debug.js
+.DS_Store
