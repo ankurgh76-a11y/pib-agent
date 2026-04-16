@@ -1,50 +1,51 @@
-// Ultimate AI Agent Strategy:
-// 1. Discovery: Use Google News RSS to find the latest PIB links (Never blocked, 100% GET-based).
-// 2. Reading: Use AI Reader (Jina) to read the full content of those links (Bypasses all bot detection).
-
 const BASE_URL = 'https://www.pib.gov.in';
 const JINA_PREFIX = 'https://r.jina.ai/';
 
 async function scrapeArticles(dayStr, monthStr, yearStr) {
-    console.log(`Agent: Searching Google News for PIB articles on ${dayStr} ${monthStr} ${yearStr}...`);
+    console.log(`Agent: Searching news for Date: ${dayStr} ${monthStr} ${yearStr}`);
 
     const monthMap = {
         "January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06",
         "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"
     };
-    const numericMonth = isNaN(monthStr) ? monthMap[monthStr] : (monthStr.padStart(2, '0'));
-    const dayParam = dayStr.padStart(2, '0');
+    const numericMonth = isNaN(monthStr) ? (monthMap[monthStr] || "01") : (monthStr.padStart(2, '0'));
+    const d = parseInt(dayStr);
     
-    // Construct a Google News search query for PIB articles for a specific day
-    const query = encodeURIComponent(`site:pib.gov.in releases after:${yearStr}-${numericMonth}-${dayParam} before:${yearStr}-${numericMonth}-${parseInt(dayParam)+2}`);
+    // Construct a simpler query that works reliably
+    // We search for PIB releases published around that specific date
+    const query = encodeURIComponent(`site:pib.gov.in after:${yearStr}-${numericMonth}-${d-1} before:${yearStr}-${numericMonth}-${d+1}`);
     const googleRssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en`;
 
     try {
-        const response = await fetch(googleRssUrl);
+        const response = await fetch(googleRssUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
         const xml = await response.text();
 
-        // Extract <title> and <link> from the RSS feed
         const articles = [];
-        const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>/g;
-        let match;
-
-        while ((match = itemRegex.exec(xml)) !== null) {
-            const title = match[1].trim().replace(/&amp;/g, '&');
-            const link = match[2];
+        // More robust parsing for Google News RSS
+        const items = xml.split('<item>');
+        items.shift(); // remove header
+        
+        for (const item of items) {
+            const titleMatch = item.match(/<title>(.*?)<\/title>/);
+            const linkMatch = item.match(/<link>(.*?)<\/link>/);
             
-            // Clean title (it often ends with "- Press Information Bureau")
-            const cleanTitle = title.replace(/\s*-\s*Press Information Bureau\s*$/i, '');
-            
-            if (cleanTitle.length > 5 && link.includes('pib.gov.in')) {
-                articles.push({
-                    title: cleanTitle,
-                    link: link,
-                    id: link.match(/PRID=(\d+)/)?.[1] || Math.random().toString()
-                });
+            if (titleMatch && linkMatch) {
+                const title = titleMatch[1].replace(/&amp;/g, '&').replace(/\s*-\s*Press Information Bureau\s*$/i, '');
+                const link = linkMatch[1];
+                
+                if (title.length > 5 && link.includes('pib.gov.in')) {
+                    articles.push({
+                        title: title,
+                        link: link,
+                        id: link.match(/PRID=(\d+)/)?.[1] || Math.random().toString()
+                    });
+                }
             }
         }
 
-        console.log(`Agent: Found ${articles.length} news articles via Google Discovery.`);
+        console.log(`Agent: Found ${articles.length} news items.`);
         return articles;
     } catch (err) {
         console.error('Agent Error:', err.message);
@@ -53,9 +54,7 @@ async function scrapeArticles(dayStr, monthStr, yearStr) {
 }
 
 async function scrapeArticleDetail(url) {
-    console.log(`Agent: Reading article detail via AI Reader: ${url}`);
-    
-    // Some Google News links are redirects, Jina handles them but it's better to ensure we have the direct link
+    console.log(`Agent: Fetching story via AI Reader: ${url}`);
     const readerUrl = `${JINA_PREFIX}${url}`;
 
     try {
@@ -64,12 +63,12 @@ async function scrapeArticleDetail(url) {
         });
         const data = await response.json();
         
-        const cleanContent = data.data?.content || "Content extraction failed.";
-        const cleanTitle = data.data?.title || "PIB Press Release";
+        const cleanContent = data.data?.content || "No detailed content found for this release.";
+        const cleanTitle = data.data?.title || "Press Release";
 
         const contentHtml = `
-            <div style="color: #ccc; line-height: 1.6; font-size: 1.05rem;">
-                ${cleanContent.split('\n\n').join('</div><div style="margin-bottom: 1rem;">')}
+            <div style="color: #ccc; line-height: 1.6; font-size: 1.05rem; white-space: pre-wrap;">
+                ${cleanContent}
             </div>
         `;
 
@@ -78,10 +77,10 @@ async function scrapeArticleDetail(url) {
             content: contentHtml
         };
     } catch (err) {
-        console.error('Agent Error:', err.message);
+        console.error('Agent Detail Error:', err.message);
         return {
-            title: 'Error',
-            content: 'Failed to load article detail.'
+            title: 'Error reading story',
+            content: 'Could not load the full content via the AI Reader.'
         };
     }
 }
