@@ -2,87 +2,46 @@ const BASE_URL = 'https://www.pib.gov.in';
 const JINA_PREFIX = 'https://r.jina.ai/';
 
 async function scrapeArticles(dayStr, monthStr, yearStr) {
-    const log = (msg) => console.log(msg);
-    log(`Agent: Searching news for Date: ${dayStr} ${monthStr} ${yearStr}`);
+    console.log(`Agent: Investigating Direct PIB Connection...`);
 
-    const monthMap = {
-        "January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06",
-        "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"
-    };
-    const numericMonth = isNaN(monthStr) ? (monthMap[monthStr] || "01") : (monthStr.padStart(2, '0'));
-    const d = parseInt(dayStr);
-    
-    // Construct a simpler query that works reliably
-    // We search for PIB releases published around that specific date
-    const query = encodeURIComponent(`site:pib.gov.in after:${yearStr}-${numericMonth}-${d-1} before:${yearStr}-${numericMonth}-${d+1}`);
-    const googleRssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en`;
+    // We will talk DIRECTLY to PIB's list page via Jina
+    const pibUrl = `${BASE_URL}/allRel.aspx?reg=3&lang=1`;
+    const readerUrl = `${JINA_PREFIX}${pibUrl}`;
 
     try {
-        const response = await fetch(googleRssUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+        const response = await fetch(readerUrl, {
+            headers: { 'Accept': 'text/plain' }
         });
-        const xml = await response.text();
+        const text = await response.text();
 
-        const articles = [];
-        // More robust parsing for Google News RSS
-        const items = xml.split('<item>');
-        items.shift(); // remove header
-        
-        for (const item of items) {
-            const titleMatch = item.match(/<title>(.*?)<\/title>/);
-            const linkMatch = item.match(/<link>(.*?)<\/link>/);
-            
-            if (titleMatch && linkMatch) {
-                const title = titleMatch[1].replace(/&amp;/g, '&').replace(/\s*-\s*Press Information Bureau\s*$/i, '');
-                const link = linkMatch[1];
-                
-                if (title.length > 5 && link.includes('pib.gov.in')) {
-                    articles.push({
-                        title: title,
-                        link: link,
-                        id: link.match(/PRID=(\d+)/)?.[1] || Math.random().toString()
-                    });
-                }
-            }
+        // If the text contains "Access Denied" or "Unusual Traffic", we'll know for sure.
+        if (text.includes("About this page") || text.includes("Access Denied") || text.includes("Too Many Requests")) {
+            throw new Error(`PIB Security Block: ${text.substring(0, 500)}`);
         }
 
-        console.log(`Agent: Found ${articles.length} news items.`);
+        // Try to parse article IDs anyway
+        const articles = [];
+        const regex = /PRID=(\d+)/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            articles.push({ id: match[1], title: `Article ${match[1]}`, link: `${BASE_URL}/PressReleasePage.aspx?PRID=${match[1]}` });
+        }
+
         return articles;
     } catch (err) {
-        console.error('Agent Error:', err.message);
-        return [];
+        // This is where we catch the "real" reason for the user to see
+        throw new Error(`Direct PIB Connection Failed: ${err.message}`);
     }
 }
 
 async function scrapeArticleDetail(url) {
-    console.log(`Agent: Fetching story via AI Reader: ${url}`);
     const readerUrl = `${JINA_PREFIX}${url}`;
-
     try {
-        const response = await fetch(readerUrl, {
-            headers: { 'Accept': 'application/json' }
-        });
+        const response = await fetch(readerUrl);
         const data = await response.json();
-        
-        const cleanContent = data.data?.content || "No detailed content found for this release.";
-        const cleanTitle = data.data?.title || "Press Release";
-
-        const contentHtml = `
-            <div style="color: #ccc; line-height: 1.6; font-size: 1.05rem; white-space: pre-wrap;">
-                ${cleanContent}
-            </div>
-        `;
-
-        return {
-            title: cleanTitle,
-            content: contentHtml
-        };
+        return { title: data.data?.title || "PIB Release", content: data.data?.content || "No content" };
     } catch (err) {
-        console.error('Agent Detail Error:', err.message);
-        return {
-            title: 'Error reading story',
-            content: 'Could not load the full content via the AI Reader.'
-        };
+        return { title: 'Error', content: err.message };
     }
 }
 
