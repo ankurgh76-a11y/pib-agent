@@ -2,7 +2,8 @@ const BASE_URL = 'https://www.pib.gov.in';
 const JINA_PREFIX = 'https://r.jina.ai/';
 
 async function scrapeArticles(dayStr, monthStr, yearStr) {
-    console.log(`Agent: Searching news for Date: ${dayStr} ${monthStr} ${yearStr}`);
+    const log = (msg) => console.log(msg);
+    log(`Agent: Searching news for Date: ${dayStr} ${monthStr} ${yearStr}`);
 
     const monthMap = {
         "January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06",

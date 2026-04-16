@@ -13,8 +13,20 @@ const monthNames = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 
+let lastError = "No errors logged yet.";
+let lastLog = "System started.";
+
 app.get('/', (req, res) => {
     res.send('PIB Agent Server is Live! 🚀');
+});
+
+app.get('/api/debug', (req, res) => {
+    res.json({
+        status: "Running",
+        lastError,
+        lastLog,
+        time: new Date().toISOString()
+    });
 });
 
 app.get('/api/articles', async (req, res) => {
@@ -28,9 +40,11 @@ app.get('/api/articles', async (req, res) => {
 
     try {
         const articles = await scrapeArticles(day, month, year);
+        lastLog = `Success: Found ${articles.length} articles for ${day}/${month}/${year}`;
         res.json(articles);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch articles' });
+        lastError = `Scrape Error: ${error.message}`;
+        res.status(500).json({ error: 'Failed to fetch articles', details: error.message });
     }
 });
 
