@@ -1,6 +1,5 @@
-# Use the official Microsoft Playwright image as base
-# It contains all the Linux libraries needed to run Chromium
-FROM mcr.microsoft.com/playwright:v1.41.2-focal
+# Use the latest official Playwright image (v1.49 contains Node 20.18+)
+FROM mcr.microsoft.com/playwright:v1.49.0-noble
 
 # Set working directory
 WORKDIR /app
