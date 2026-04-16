@@ -13,6 +13,10 @@ const monthNames = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 
+app.get('/', (req, res) => {
+    res.send('PIB Agent Server is Live! 🚀');
+});
+
 app.get('/api/articles', async (req, res) => {
     const { d, m, y } = req.query;
     
