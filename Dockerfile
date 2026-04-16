@@ -1,5 +1,6 @@
-# Use the latest official Playwright image (v1.49 contains Node 20.18+)
-FROM mcr.microsoft.com/playwright:v1.49.0-noble
+# Use a lightweight Node.js image
+# We no longer need the heavy Playwright/Chromium image!
+FROM node:20-slim
 
 # Set working directory
 WORKDIR /app
@@ -7,8 +8,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install only necessary dependencies
+RUN npm install --production
 
 # Copy the rest of the application
 COPY . .
